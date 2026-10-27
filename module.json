@@ -7,8 +7,8 @@
     { "name": "vechs" }
   ],
   "url": "https://github.com/vechs/hero-point-handle-bars",
-  "manifest": "https://github.com/vechs/hero-point-handle-bars/releases/latest/module.json",
-  "download": "https://github.com/vechs/hero-point-handle-bars/releases/0.1.0/hero-point-handle-bars.zip",
+  "manifest": "https://github.com/vechs/hero-point-handle-bars/releases/download/latest/module.json",
+  "download": "https://github.com/vechs/hero-point-handle-bars/releases/download/0.1.0/hero-point-handle-bars.zip",
   "bugs": "https://github.com/vechs/hero-point-handle-bars/issues",
   "readme": "README.md",
   "compatibility": { "minimum": "14", "verified": "14" },
