@@ -47,7 +47,7 @@ export function recipientForToken(token, players) {
   return matches[0];
 }
 
-export function planGift({ state, donor, recipient, actor, players, now }) {
+export function planGift({ state, donor, recipient, actor, players, now, cooldownMs = COOLDOWN_MS }) {
   if (!donor?.active || donor.isBanned) throw new GiftError("The gifting user is no longer connected.");
   if (!players.some(user => user.id === recipient?.id)) throw new GiftError("That player is not eligible to receive a coin.");
   if (donor.id === recipient.id) throw new GiftError("You can only gift a Hero Point to another player.");
@@ -73,7 +73,10 @@ export function planGift({ state, donor, recipient, actor, players, now }) {
   if (resource.value >= resource.max) throw new GiftError("That character already has the maximum number of Hero Points.");
   const nextState = { ...current };
   if (!donor.isGM) {
-    nextState.cooldownUntil = now + COOLDOWN_MS;
+    if (!Number.isSafeInteger(cooldownMs) || cooldownMs < 0 || !Number.isSafeInteger(now + cooldownMs)) {
+      throw new GiftError("Set the player gift cooldown to a valid non-negative number of minutes in Module Settings.");
+    }
+    nextState.cooldownUntil = now + cooldownMs;
     nextState.received = [...current.received, recipient.id];
     if (players.every(user => nextState.received.includes(user.id))) {
       nextState.received = [];

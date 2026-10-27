@@ -47,13 +47,17 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   users.get = id => users.find(user => user.id === id);
   users.activeGM = gm;
   const values = new Map();
+  const settings = new Map();
   let binding;
   const module = {};
   install("game", {
     ready: false, user: a, users, system: { id: "pf2e" }, messages: [],
     modules: new Map([[MODULE_ID, module]]),
     settings: {
-      register: (_module, key, definition) => values.set(key, key === "showHand" ? false : structuredClone(definition.default)),
+      register: (_module, key, definition) => {
+        settings.set(key, definition);
+        values.set(key, key === "showHand" ? false : structuredClone(definition.default));
+      },
       get: (_module, key) => values.get(key),
       set: async (_module, key, value) => values.set(key, value)
     },
@@ -74,6 +78,9 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   install("fromUuid", async uuid => uuid === token.uuid ? token : uuid === actor.uuid ? actor : null);
   let requestNumber = 0;
   install("foundry", {
+    data: { fields: { NumberField: class NumberField {
+      constructor(options) { this.options = options; }
+    } } },
     utils: { randomID: () => `request-${String(++requestNumber).padStart(16, "0")}` },
     documents: { ChatMessage: { async create(data) {
       assert.equal(game.user.id, "gm");
@@ -89,6 +96,11 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   emit("init");
   game.ready = true;
   emit("ready");
+  assert.equal(settings.get("cooldownMinutes").scope, "world");
+  assert.equal(settings.get("cooldownMinutes").config, true);
+  assert.equal(values.get("cooldownMinutes"), 60);
+  assert.equal(settings.get("cooldownMinutes").type.options.min, 0);
+  await game.settings.set(MODULE_ID, "cooldownMinutes", 15);
   assert.deepEqual(binding.editable, [{ key: "KeyH" }]);
   assert.equal(binding.onDown({ event: { target: { closest: () => ({}) } } }), false, "typing must not trigger a gift");
   assert.equal(binding.onDown({ event: { repeat: true } }), false);
@@ -102,6 +114,8 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   assert.equal(actor.system.resources.heroPoints.value, 2);
   assert.deepEqual(routes[0], { userId: "gm", callerId: "a" });
   const state = module.api.getState();
+  const remaining = state.cooldownUntil - Date.now();
+  assert.ok(remaining > 14 * 60000 && remaining <= 15 * 60000, "the GM uses the configured cooldown");
   assert.deepEqual(state.received, ["b"]);
   state.received.length = 0;
   assert.deepEqual(module.api.getState().received, ["b"], "the public state accessor must return a copy");

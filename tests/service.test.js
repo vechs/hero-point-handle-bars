@@ -6,6 +6,7 @@ import { MODULE_ID, emptyState, HERO_POINT_PATH, COOLDOWN_MS } from "../scripts/
 function fixture() {
   let saved = emptyState();
   let time = 1000;
+  let cooldownMinutes = 60;
   const errors = [];
   const gm = { id: "gm", name: "GM", active: true, isGM: true, viewedScene: "scene" };
   const a = { id: "a", name: "<Alice>", active: true, viewedScene: "scene", character: { id: "actor-a", type: "character" } };
@@ -31,7 +32,10 @@ function fixture() {
   const token = { documentName: "Token", actorLink: true, actor, parent: { id: "scene" }, texture: { src: "token.webp" } };
   const game = {
     user: gm, system: { id: "pf2e" }, users, messages,
-    settings: { get: () => structuredClone(saved), set: async (_module, _key, value) => { saved = structuredClone(value); } }
+    settings: {
+      get: (_module, key) => key === "cooldownMinutes" ? cooldownMinutes : structuredClone(saved),
+      set: async (_module, _key, value) => { saved = structuredClone(value); }
+    }
   };
   const deps = {
     game, resolveUuid: async uuid => uuid === actor.uuid ? actor : uuid === "Scene.scene.Token.token" ? token : null,
@@ -41,7 +45,8 @@ function fixture() {
   const service = new GiftService(deps);
   const request = (id = "request-0000000001") => ({ id, version: 1, tokenUuid: "Scene.scene.Token.token" });
   return { service, deps, game, actor, token, gm, a, b, c, messages, errors, request,
-    state: () => saved, setTime: value => { time = value; }, updates: () => updates };
+    state: () => saved, setTime: value => { time = value; },
+    setCooldown: minutes => { cooldownMinutes = minutes; }, updates: () => updates };
 }
 
 test("Socketlib caller identity controls donor and success publishes exactly once", async () => {
@@ -68,6 +73,30 @@ test("simultaneous requests serialize, so only one player gift succeeds", async 
   assert.deepEqual(results.map(result => result.ok), [true, false]);
   assert.match(results[1].error, /cooldown/);
   assert.equal(f.updates(), 1);
+});
+
+test("configured cooldown applies to future gifts without rewriting an existing expiry", async () => {
+  const f = fixture();
+  f.setCooldown(15);
+  assert.equal((await f.service.handleRequest(f.request(), "a")).ok, true);
+  const expiry = 1000 + 15 * 60000;
+  assert.equal(f.state().cooldownUntil, expiry);
+  f.setCooldown(0);
+  const blocked = await f.service.handleRequest(f.request("request-0000000002"), "c");
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error, /cooldown/);
+  assert.equal(f.state().cooldownUntil, expiry);
+});
+
+test("zero cooldown allows immediate new gifts while preserving recipient rotation", async () => {
+  const f = fixture();
+  f.setCooldown(0);
+  assert.equal((await f.service.handleRequest(f.request(), "a")).ok, true);
+  assert.equal(f.state().cooldownUntil, 1000);
+  const repeatedRecipient = await f.service.handleRequest(f.request("request-0000000002"), "c");
+  assert.equal(repeatedRecipient.ok, false);
+  assert.match(repeatedRecipient.error, /already received/);
+  assert.deepEqual(f.state().received, ["b"]);
 });
 
 test("retrying an existing request does not award twice, including after service restart", async () => {
@@ -149,6 +178,7 @@ test("GM gifts can repeat during cooldown without advancing the player rotation"
   const f = fixture();
   await f.service.handleRequest(f.request(), "a");
   const before = structuredClone(f.state());
+  f.setCooldown(5);
   assert.equal((await f.service.handleRequest(f.request("request-0000000002"), "gm")).ok, true);
   assert.deepEqual(f.state(), before);
   assert.equal(f.actor.system.resources.heroPoints.value, 3);

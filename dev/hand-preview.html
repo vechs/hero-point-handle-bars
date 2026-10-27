@@ -14,18 +14,19 @@
     button, input { font: inherit; }
     .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     .controls button { padding: 8px 16px; border: 1px solid #f7ce6870; border-radius: 6px; color: #fff1cd; background: #17222e; cursor: pointer; }
-    #sidebar { position: fixed; right: 0; top: 0; height: 100vh; width: 200px; padding: 24px; border-left: 1px solid #7c6c4e; background: #15161ddf; transition: width .2s; }
-    #sidebar.collapsed { width: 50px; padding: 16px 8px; }
-    #sidebar.collapsed p { display: none; }
-    #sidebar button { width: 100%; background: transparent; border: 1px solid #756d61; color: #f7ce68; border-radius: 4px; cursor: pointer; }
+    #sidebar { position: fixed; right: 0; top: 0; height: 100vh; display: flex; z-index: 30; pointer-events: none; }
+    #sidebar-tabs { flex: none; width: 50px; padding: 16px 8px; }
+    #sidebar-content { flex: none; width: 200px; height: 100%; padding: 24px; border-left: 1px solid #7c6c4e; background: #15161ddf; margin-right: 0; transition: margin-right .2s; pointer-events: auto; }
+    #sidebar.collapsed #sidebar-content { margin-right: -200px; }
+    #sidebar-tabs button { width: 100%; min-height: 34px; margin-bottom: 8px; background: #15161dc9; border: 1px solid #756d61; color: #f7ce68; border-radius: 4px; cursor: pointer; pointer-events: auto; }
     #feedback { color: #f7ce68; min-height: 2em; }
-    @media (max-width: 700px) { main { padding: 24px; margin-right: 50px; } #sidebar { width: 50px; padding: 16px 8px; } #sidebar p { display: none; } }
+    @media (max-width: 700px) { main { padding: 24px; margin-right: 50px; } #sidebar-content { width: 150px; } #sidebar.collapsed #sidebar-content { margin-right: -150px; } }
   </style>
 </head>
 <body>
   <main>
     <h1>Toss a coin.</h1>
-    <p>Move your pointer up and down in the strip left of the sidebar. Click the hand or press H to see its flick. This preview uses the module's actual SVG and animations.</p>
+    <p>Move your pointer up and down in the strip left of the sidebar. Click your hand for a playful coin flourish or thumb wiggle. Press H to gift a coin. This preview uses the module's actual SVG and animations.</p>
     <div class="controls">
       <label>Player color <input id="color" type="color" value="#b59ce0"></label>
       <button id="ready" type="button">Coin ready</button>
@@ -35,7 +36,15 @@
     <p id="feedback" role="status"></p>
     <p>The rest of the strip lets clicks pass through to the scene. The sidebar can collapse, and the hand stays attached to its edge.</p>
   </main>
-  <aside id="sidebar"><button id="collapse" aria-label="Toggle sidebar" type="button">☰</button><p>Mock Foundry sidebar</p></aside>
+  <aside id="sidebar">
+    <nav id="sidebar-tabs" aria-label="Mock sidebar tabs">
+      <button id="collapse" aria-label="Toggle sidebar" type="button">☰</button>
+      <button aria-label="Chat tab" type="button">☷</button>
+      <button aria-label="Actors tab" type="button">♙</button>
+      <button aria-label="Settings tab" type="button">⚙</button>
+    </nav>
+    <div id="sidebar-content"><p>Mock Foundry sidebar content</p></div>
+  </aside>
   <script type="module">
     import { HeroHand } from "../scripts/hand.js";
     globalThis.game = { user: { color: "#b59ce0" } };
@@ -50,7 +59,7 @@
       hand.flick();
       document.querySelector("#feedback").textContent = "Coin gifted! The shared cooldown starts.";
     }
-    const hand = new HeroHand({ onGift: flick }).mount();
+    const hand = new HeroHand().mount();
     setAvailable(true);
     document.querySelector("#color").addEventListener("input", event => {
       game.user.color = event.target.value;

@@ -6,7 +6,8 @@
   inset: 0 0 0 auto;
   width: 280px;
   height: 100vh;
-  z-index: 65;
+  /* Foundry's sidebar lives at the application layer, above the canvas. */
+  z-index: calc(var(--z-index-app, 30) - 1);
   pointer-events: none;
   contain: layout style;
 }
@@ -66,6 +67,12 @@
   fill: var(--hero-hand-color);
 }
 
+/* Keep the sleeve soft as it crosses beneath the sidebar's tab rail. */
+.hero-hand__arm,
+.hero-hand__arm-highlight {
+  opacity: .7;
+}
+
 .hero-hand__thumb {
   transform-box: view-box;
   transform-origin: 89px 91px;
@@ -74,7 +81,7 @@
 
 .hero-hand__coin {
   transform-box: view-box;
-  transform-origin: 85px 49px;
+  transform-origin: 60px 80px;
   animation: hero-hand-coin-roll 8s ease-in-out infinite;
   opacity: 1;
   transition: opacity 180ms;
@@ -88,10 +95,6 @@
 
 .hero-hand.is-spent .hero-hand__thumb {
   animation: hero-hand-thumbs-up 7s ease-in-out infinite;
-}
-
-.hero-hand.is-spent .hero-hand__button {
-  cursor: default;
 }
 
 .hero-hand__status {
@@ -120,6 +123,18 @@
   opacity: 1;
 }
 
+.hero-hand.is-playing-coin .hero-hand__thumb {
+  animation: hero-hand-play-thumb 950ms ease-in-out both;
+}
+
+.hero-hand.is-playing-coin .hero-hand__coin {
+  animation: hero-hand-coin-flourish 950ms ease-in-out both;
+}
+
+.hero-hand.is-playing-thumb .hero-hand__thumb {
+  animation: hero-hand-thumb-wiggle 850ms ease-in-out both;
+}
+
 @keyframes hero-hand-twiddle {
   0%, 12%, 45%, 100% { transform: rotate(0); }
   19%, 32% { transform: rotate(13deg); }
@@ -129,11 +144,34 @@
 
 @keyframes hero-hand-coin-roll {
   0%, 12%, 45%, 100% { transform: translate(0, 0) rotate(0) scaleX(1); }
-  19% { transform: translate(9px, 3px) rotate(28deg) scaleX(.35); }
-  25% { transform: translate(-5px, -3px) rotate(-18deg) scaleX(1); }
-  32% { transform: translate(9px, 3px) rotate(28deg) scaleX(.35); }
-  38% { transform: translate(-5px, -3px) rotate(-18deg) scaleX(1); }
-  70% { transform: translate(0, -5px) rotate(8deg); }
+  19% { transform: translate(4px, -2px) rotate(12deg) scaleX(.75); }
+  25% { transform: translate(-4px, -1px) rotate(-12deg) scaleX(1); }
+  32% { transform: translate(4px, -2px) rotate(12deg) scaleX(.75); }
+  38% { transform: translate(-4px, -1px) rotate(-12deg) scaleX(1); }
+  70% { transform: translate(0, -3px) rotate(4deg); }
+}
+
+@keyframes hero-hand-play-thumb {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(13deg); }
+  42% { transform: rotate(-15deg); }
+  65% { transform: rotate(8deg); }
+}
+
+@keyframes hero-hand-coin-flourish {
+  0% { transform: translate(0, 0) rotate(0) scaleX(1); }
+  22% { transform: translate(-9px, -7px) rotate(-25deg) scaleX(.7); }
+  47% { transform: translate(-12px, -24px) rotate(-180deg) scaleX(.2); }
+  73% { transform: translate(-5px, -9px) rotate(-335deg) scaleX(.7); }
+  90% { transform: translate(1px, -2px) rotate(-360deg) scaleX(1); }
+  100% { transform: translate(0, 0) rotate(-360deg) scaleX(1); }
+}
+
+@keyframes hero-hand-thumb-wiggle {
+  0%, 100% { transform: rotate(0); }
+  18%, 54% { transform: rotate(-18deg); }
+  36%, 72% { transform: rotate(15deg); }
+  88% { transform: rotate(-6deg); }
 }
 
 @keyframes hero-hand-thumbs-up {
@@ -151,9 +189,10 @@
 }
 
 @keyframes hero-hand-toss {
-  0%, 24% { transform: translate(0, 0) rotate(0); opacity: 1; }
-  40% { transform: translate(-28px, -65px) rotate(-95deg); opacity: 1; }
-  100% { transform: translate(-170px, -160px) rotate(-460deg) scale(.2); opacity: 0; }
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  24% { transform: translate(9px, -4px) rotate(15deg); opacity: 1; }
+  40% { transform: translate(-28px, -65px) rotate(-95deg) scaleY(1.6); opacity: 1; }
+  100% { transform: translate(-170px, -160px) rotate(-460deg) scale(.2, .4); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -162,11 +201,20 @@
   .hero-hand__thumb,
   .hero-hand__coin,
   .hero-hand.is-spent .hero-hand__thumb,
-  .hero-hand.is-flicking .hero-hand__thumb { animation: none; }
+  .hero-hand.is-flicking .hero-hand__thumb,
+  .hero-hand.is-playing-coin .hero-hand__thumb,
+  .hero-hand.is-playing-thumb .hero-hand__thumb { animation: none; }
+  .hero-hand.is-playing-coin .hero-hand__coin,
+  .hero-hand.is-playing-thumb .hero-hand__thumb { animation: hero-hand-reduced-play 450ms both; }
   .hero-hand.is-flicking .hero-hand__coin { animation: hero-hand-reduced-flick 300ms both; }
 }
 
 @keyframes hero-hand-reduced-flick {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+@keyframes hero-hand-reduced-play {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .65; }
 }

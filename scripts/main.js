@@ -1,4 +1,4 @@
-import { MODULE_ID, GiftError, emptyState, eligiblePlayers, normalizeState, recipientForToken } from "./rules.js";
+import { MODULE_ID, COOLDOWN_MS, GiftError, emptyState, eligiblePlayers, normalizeState, recipientForToken } from "./rules.js";
 import { GiftService } from "./service.js";
 import { HeroHand } from "./hand.js";
 import { registerCoinHooks, showGiftCoin } from "./coin.js";
@@ -38,6 +38,13 @@ Hooks.once("init", () => {
     scope: "client", config: true, type: Boolean, default: true,
     onChange: () => mountHand()
   });
+  game.settings.register(MODULE_ID, "cooldownMinutes", {
+    name: "Player gift cooldown (minutes)",
+    hint: "Shared cooldown after a player gifts a Hero Point. Default: 60 minutes. Set 0 for no delay. Applies to future gifts; active countdowns keep their expiry. GM gifts never affect this timer.",
+    scope: "world", config: true,
+    type: new foundry.data.fields.NumberField({ nullable: false, integer: true, min: 0, initial: COOLDOWN_MS / 60000 }),
+    default: COOLDOWN_MS / 60000
+  });
   game.keybindings.register(MODULE_ID, "gift", {
     name: "Gift a Hero Point",
     hint: "Target exactly one other player's assigned character, then flick a coin their way.",
@@ -72,7 +79,7 @@ Hooks.once("ready", () => {
 function mountHand() {
   if (!game.ready || !service) return;
   hand?.destroy();
-  hand = game.settings.get(MODULE_ID, "showHand") ? new HeroHand({ onGift: gift }).mount() : null;
+  hand = game.settings.get(MODULE_ID, "showHand") ? new HeroHand().mount() : null;
   refreshHand();
 }
 
@@ -104,7 +111,7 @@ function refreshHand() {
   hand.setState({ available: !reason, reason, cooldownUntil });
 }
 
-/** Public macro API as well as the hand/keybinding action. */
+/** Public macro API as well as the gift keybinding action. */
 async function gift() {
   if (busy) return { ok: false, error: "A gift is already in progress." };
   busy = true;

@@ -3,31 +3,34 @@ const SVG = `
   <g class="hero-hand__gesture" stroke="#241c27" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
     <path class="hero-hand__arm" d="M320 93 C258 96 185 91 120 91 L102 120 C177 112 245 118 320 114 Z"/>
     <path class="hero-hand__arm-highlight" d="M143 96 C211 100 266 100 318 98" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="5"/>
-    <path class="hero-hand__palm" d="M111 91 C99 82 88 76 75 79 L53 88 C42 91 36 101 40 112 C44 123 58 130 74 128 L101 123 C114 118 122 101 111 91 Z"/>
+    <path class="hero-hand__palm" d="M111 91 C99 82 88 76 75 79 L53 88 C42 91 36 101 40 112 C44 128 58 138 74 134 L101 123 C114 118 122 101 111 91 Z"/>
+    <path class="hero-hand__finger hero-hand__skin" d="M57 86 C46 81 34 82 30 89 C26 97 35 102 46 103 L63 104 C70 104 73 97 67 93 L53 89"/>
+    <path class="hero-hand__finger hero-hand__skin" d="M47 101 C35 97 25 101 27 109 C29 116 43 118 58 117 L65 116 C72 113 70 106 64 105 L48 104"/>
+    <path class="hero-hand__finger hero-hand__skin" d="M45 115 C34 111 27 116 30 123 C33 130 45 132 59 130 C67 129 69 123 63 119 L48 118"/>
+    <path class="hero-hand__finger hero-hand__skin" d="M47 128 C38 124 33 129 37 135 C41 141 51 142 62 137 C68 134 66 128 60 128 L49 130"/>
+    <path d="M101 97 Q108 106 101 116" fill="none" stroke-opacity=".3" stroke-width="2.5"/>
+    <g class="hero-hand__coin" stroke="#6c4112" stroke-width="2.5">
+      <ellipse cx="61" cy="80" rx="17" ry="7" fill="#c58a2a"/>
+      <ellipse cx="60" cy="77" rx="17" ry="6" fill="#f7ce68"/>
+      <ellipse cx="60" cy="77" rx="12" ry="3.5" fill="none" stroke="#bd8225" stroke-width="1.5"/>
+      <path d="M60 74 L63 76 L68 77 L63 78 L60 80 L57 78 L52 77 L57 76 Z" fill="#fff1bb" stroke="none"/>
+    </g>
     <g class="hero-hand__thumb">
       <path class="hero-hand__skin" d="M90 100 C99 93 104 83 101 73 L94 48 C91 39 83 34 78 39 C73 43 75 52 77 58 L81 75 C76 80 73 88 74 94"/>
       <path d="M80 43 L84 52" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="4"/>
       <path d="M78 72 Q85 69 93 72" fill="none" stroke-opacity=".35" stroke-width="2"/>
-    </g>
-    <path class="hero-hand__skin" d="M51 87 C39 82 30 87 31 94 C31 101 41 102 53 104 L64 105 C70 104 72 98 67 95 L54 91 M44 102 C32 99 27 105 31 111 C35 117 49 117 60 117 C66 117 69 112 64 108 M41 116 C32 116 33 123 40 126 C46 129 55 129 62 128"/>
-    <path d="M101 97 Q108 106 101 116" fill="none" stroke-opacity=".3" stroke-width="2.5"/>
-    <g class="hero-hand__coin" stroke="#6c4112" stroke-width="2.5">
-      <ellipse cx="87" cy="34" rx="14" ry="16" fill="#c58a2a"/>
-      <ellipse cx="84" cy="33" rx="12" ry="15" fill="#f7ce68"/>
-      <ellipse cx="84" cy="33" rx="8" ry="11" fill="none" stroke="#bd8225" stroke-width="1.5"/>
-      <path d="M84 25 L86 30 L90 31 L87 34 L87 39 L84 37 L80 39 L81 34 L78 31 L82 30 Z" fill="#fff1bb" stroke="none"/>
     </g>
   </g>
 </svg>`;
 
 /** The local player's hand. Gift permission and targeting belong to the controller. */
 export class HeroHand {
-  constructor({ onGift } = {}) {
-    this.onGift = onGift;
+  constructor() {
     this.state = { available: false, cooldownUntil: 0, reason: "Connecting to the GM…" };
     this._y = null;
     this._frame = null;
     this._flickTimer = null;
+    this._playTimer = null;
     this._onPointerMove = this._onPointerMove.bind(this);
     this._scheduleLayout = this._scheduleLayout.bind(this);
   }
@@ -40,9 +43,7 @@ export class HeroHand {
     this.element.innerHTML = `<button class="hero-hand__button" type="button">${SVG}<span class="hero-hand__status"></span></button>`;
     this.button = this.element.querySelector("button");
     this.status = this.element.querySelector(".hero-hand__status");
-    this.button.addEventListener("click", () => {
-      if (this.state.available) this.onGift?.();
-    });
+    this.button.addEventListener("click", () => this.play());
     document.body.append(this.element);
     window.addEventListener("pointermove", this._onPointerMove, { passive: true });
     window.addEventListener("resize", this._scheduleLayout, { passive: true });
@@ -62,19 +63,39 @@ export class HeroHand {
   }
 
   setState(state = {}) {
+    if ("available" in state && Boolean(state.available) !== Boolean(this.state.available)) this._stopPlay();
     this.state = { ...this.state, ...state };
     this._renderState();
+  }
+
+  /** A local flourish; playing never spends the coin or invokes gift handling. */
+  play() {
+    if (!this.element || this._flickTimer !== null) return;
+    this._stopPlay();
+    void this.element.offsetWidth;
+    this.element.classList.add(this.state.available ? "is-playing-coin" : "is-playing-thumb");
+    this._playTimer = window.setTimeout(() => this._stopPlay(), 1000);
+  }
+
+  _stopPlay() {
+    window.clearTimeout(this._playTimer);
+    this._playTimer = null;
+    this.element?.classList.remove("is-playing-coin", "is-playing-thumb");
   }
 
   /** Play only after the authority confirms a successful gift. */
   flick() {
     if (!this.element) return;
+    this._stopPlay();
     window.clearTimeout(this._flickTimer);
     this.element.classList.remove("is-flicking");
     // Restart when a GM gives several coins in quick succession.
     void this.element.offsetWidth;
     this.element.classList.add("is-flicking");
-    this._flickTimer = window.setTimeout(() => this.element?.classList.remove("is-flicking"), 850);
+    this._flickTimer = window.setTimeout(() => {
+      this.element?.classList.remove("is-flicking");
+      this._flickTimer = null;
+    }, 850);
   }
 
   destroy() {
@@ -82,6 +103,8 @@ export class HeroHand {
     window.removeEventListener("resize", this._scheduleLayout);
     window.clearInterval(this._clock);
     window.clearTimeout(this._flickTimer);
+    this._flickTimer = null;
+    this._stopPlay();
     if (this._frame !== null) window.cancelAnimationFrame(this._frame);
     this._resizeObserver?.disconnect();
     this._mutationObserver?.disconnect();
@@ -100,15 +123,14 @@ export class HeroHand {
     const seconds = Math.ceil(remaining / 1000);
     const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     const description = available
-      ? "Target another player's token, then press H or click to gift a Hero Point."
-      : reason || (remaining > 0 ? "The party's next coin is on its way." : "Waiting for the next coin.");
+      ? "Click to play with your coin. Target another player's token and press H to gift a Hero Point."
+      : `Click to wiggle your thumb. ${reason || (remaining > 0 ? "The party's next coin is on its way." : "Waiting for the next coin.")}`;
     const label = `${description}${remaining > 0 ? ` (${clock} remaining)` : ""}`;
     this.element.classList.toggle("has-coin", Boolean(available));
     this.element.classList.toggle("is-spent", !available);
-    this.button.setAttribute("aria-disabled", String(!available));
     this.button.setAttribute("aria-label", label);
     this.button.title = label;
-    this.status.textContent = remaining > 0 ? clock : available ? "H · Gift a Hero Point" : "Thumbs up!";
+    this.status.textContent = remaining > 0 ? `${clock} · Click to play` : available ? "Click · Play / H · Gift" : "Click · Thumb wiggle";
     const color = String(globalThis.game?.user?.color ?? "#8d78bf");
     this.element.style.setProperty("--hero-hand-color", CSS.supports("color", color) ? color : "#8d78bf");
   }
@@ -123,16 +145,25 @@ export class HeroHand {
 
   _layout() {
     if (!this.element) return;
-    // Sidebar is narrower when collapsed. Anchoring to its actual edge follows both modes.
-    const sidebar = document.querySelector("#sidebar") ?? document.querySelector("#ui-right");
+    // The tab rail protrudes left of the content panel. Let the arm pass behind
+    // it and terminate at the panel itself, including while it slides closed.
+    const sidebar = document.querySelector("#sidebar-content")
+      ?? document.querySelector("#sidebar") ?? document.querySelector("#ui-right");
     if (sidebar !== this._observedSidebar) {
       this._resizeObserver?.disconnect();
       if (sidebar) this._resizeObserver?.observe(sidebar);
+      // A collapsing panel can move without changing its own width; the outer
+      // sidebar's changing width keeps the attachment in sync with that slide.
+      if (sidebar?.parentElement) this._resizeObserver?.observe(sidebar.parentElement);
       this._observedSidebar = sidebar;
     }
     const rect = sidebar?.getBoundingClientRect();
     const sidebarVisible = rect && rect.width > 0 && rect.height > 0;
-    const edge = sidebarVisible ? Math.max(0, Math.min(window.innerWidth, rect.left)) : window.innerWidth;
+    // Remove the panel's client-specific margin offset so a negative margin
+    // tucks the flat end farther right, underneath the content panel.
+    const marginLeft = sidebarVisible ? Number.parseFloat(window.getComputedStyle(sidebar).marginLeft) || 0 : 0;
+    const edge = sidebarVisible
+      ? Math.max(0, Math.min(window.innerWidth, rect.left - marginLeft)) : window.innerWidth;
     const width = Math.min(280, Math.max(120, edge));
     this.element.style.right = `${Math.max(0, window.innerWidth - edge)}px`;
     this.element.style.width = `${width}px`;

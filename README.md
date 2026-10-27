@@ -16,15 +16,15 @@ The root `module.json` includes the known module metadata and dependency declara
 
 ## Play
 
-Use Foundry's targeting tool to target exactly one other player's character token. Press **H** or click your hand to gift them one Hero Point. Remap the shortcut in **Configure Controls → Toss a Coin to Your Witcher** if it conflicts with another binding.
+Use Foundry's targeting tool to target exactly one other player's character token. Press **H** to gift them one Hero Point. Remap the shortcut in **Configure Controls → Hero Point Handle Bars** if it conflicts with another binding. Click your own hand for a playful coin flourish, or a thumb wiggle when empty; this local animation does not gift a point or affect any timer.
 
-Your arm starts at the left edge of Foundry's right sidebar. Move your cursor vertically in the strip occupied by the hand and arm to move it. The hand rolls its coin and twiddles its thumb while a gift is available. After a gift, it gives a thumbs up and displays the remaining cooldown. It follows your Foundry player color and respects reduced motion preferences.
+Your arm attaches to the left edge of Foundry's sidebar content panel, behind the tab rail, with a slightly translucent sleeve. Move your cursor vertically in the strip occupied by the hand and arm to move it. The hand holds a flatter coin in the crook between its thumb and index finger, rolls it, and twiddles its thumb while a gift is available. After a gift, it gives a thumbs up and displays the remaining cooldown. It follows your Foundry player color and respects reduced motion preferences.
 
 The client setting **Show the hero coin hand** hides the overlay while keeping the keybinding available. Input fields do not trigger the shortcut. The empty overlay and arm let canvas clicks pass through.
 
 ## Gift rules
 
-- Every successful player gift starts a **shared, real-time 60-minute cooldown** for all players, including its giver. It continues while Foundry is paused or players are offline.
+- Every successful player gift starts a **shared, real-time cooldown** for all players, including its giver. The GM can configure **Player gift cooldown (minutes)** under **Configure Settings → Module Settings → Hero Point Handle Bars**. The default is **60 minutes**; **0** removes the delay while keeping recipient rotation. A setting change applies to future gifts; active countdowns keep their saved expiry. The timer continues while Foundry is paused or players are offline.
 - A recipient can receive one player-gifted coin per round. The round restarts as soon as every eligible player has received one; finishing a round does not remove the cooldown.
 - Eligible players are non-GM, non-banned users with assigned PF2E character actors. Offline players remain in the rotation. Accounts without assigned characters are excluded. Removed accounts are dropped from the rotation; newly assigned players join it.
 - You cannot gift yourself. Only tokens linked to exactly one eligible user's assigned character can receive coins. Ambiguous assignments, NPCs, and unlinked tokens are rejected.
@@ -76,7 +76,7 @@ For a standalone visual preview, run `python3 -m http.server 8000` from this dir
 4. In a disposable test world, shorten the cooldown between gifts using the GM console below. Verify a previous recipient remains blocked until all eligible players receive a coin, including players who log out.
 5. Try self-targeting, no target, multiple targets, an NPC, an unlinked token, duplicate character assignments, a capped character, and pressing H while typing in chat. None should award a point.
 6. Refresh the GM and player browsers and switch the active GM. Verify the cooldown and rotation remain. Exercise simultaneous player gifts and a GM disconnect during an award.
-7. Try a WebP, PNG, and SVG token portrait; disable DSN and repeat. Check sidebar collapse, viewport resize, player color changes, reduced motion, and clicking the canvas underneath the arm.
+7. Try a WebP, PNG, and SVG token portrait; disable DSN and repeat. Check sidebar collapse, viewport resize, player color changes, reduced motion, and clicking the canvas underneath the arm. Click the hand with and without a coin: it should play a local animation without awarding a point, posting chat, or changing the cooldown.
 
 GM console, **test worlds only**, to expire just the cooldown while preserving the rotation:
 

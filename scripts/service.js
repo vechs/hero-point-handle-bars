@@ -94,7 +94,10 @@ export class GiftService {
         return { ok: true, receipt: last.receipt };
       }
       const previousState = this.state;
-      const plan = planGift({ state: previousState, donor, recipient, actor, players, now: this.now() });
+      const plan = planGift({
+        state: previousState, donor, recipient, actor, players, now: this.now(),
+        cooldownMs: this.game.settings.get(MODULE_ID, "cooldownMinutes") * 60000
+      });
       const receipt = {
         id: request.id, donorId: donor.id, donorName: donor.name,
         recipientId: recipient.id, recipientName: recipient.name,
