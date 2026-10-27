@@ -1,0 +1,26 @@
+{
+  "id": "hero-point-handle-bars",
+  "title": "Hero Point Handle Bars",
+  "description": "Celebrate heroic deeds in Pathfinder 2E by gifting Hero Points to fellow players. Includes an animated, player-colored hand, a shared 60-minute cooldown, fair recipient rotation, GM exemptions, and optional Dice So Nice coins featuring the recipient's token artwork.",
+  "version": "0.1.0",
+  "authors": [
+    { "name": "vechs" }
+  ],
+  "url": "https://github.com/vechs/hero-point-handle-bars",
+  "manifest": "https://github.com/vechs/hero-point-handle-bars/releases/latest/module.json",
+  "download": "https://github.com/vechs/hero-point-handle-bars/releases/0.1.0/hero-point-handle-bars.zip",
+  "bugs": "https://github.com/vechs/hero-point-handle-bars/issues",
+  "readme": "README.md",
+  "compatibility": { "minimum": "14", "verified": "14" },
+  "esmodules": ["scripts/main.js"],
+  "styles": ["styles/hand.css"],
+  "socket": true,
+  "relationships": {
+    "systems": [{ "id": "pf2e", "type": "system" }],
+    "requires": [{
+      "id": "socketlib", "type": "module",
+      "manifest": "https://github.com/farling42/foundryvtt-socketlib/releases/latest/download/module.json"
+    }],
+    "recommends": [{ "id": "dice-so-nice", "type": "module" }]
+  }
+}

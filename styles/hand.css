@@ -1,0 +1,172 @@
+.hero-hand {
+  --hero-hand-color: #8d78bf;
+  --hero-hand-y: 58vh;
+  --hero-hand-height: 149px;
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: 280px;
+  height: 100vh;
+  z-index: 65;
+  pointer-events: none;
+  contain: layout style;
+}
+
+.hero-hand .hero-hand__button {
+  position: absolute;
+  top: var(--hero-hand-y);
+  right: 0;
+  width: 100%;
+  height: var(--hero-hand-height);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  transition: top 180ms ease-out;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #fff1cd;
+  cursor: pointer;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.hero-hand .hero-hand__button:hover,
+.hero-hand .hero-hand__button:focus {
+  background: none;
+  box-shadow: none;
+}
+
+.hero-hand .hero-hand__button:focus-visible {
+  outline: 2px solid #f7ce68;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+.hero-hand__drawing {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 4px 5px #0006);
+}
+
+/* Only the painted hand receives clicks; the viewport strip remains usable. */
+.hero-hand__palm,
+.hero-hand__thumb,
+.hero-hand__coin,
+.hero-hand__skin {
+  pointer-events: visiblePainted;
+}
+
+.hero-hand__skin,
+.hero-hand__palm,
+.hero-hand__arm {
+  fill: var(--hero-hand-color);
+}
+
+.hero-hand__thumb {
+  transform-box: view-box;
+  transform-origin: 89px 91px;
+  animation: hero-hand-twiddle 8s ease-in-out infinite;
+}
+
+.hero-hand__coin {
+  transform-box: view-box;
+  transform-origin: 85px 49px;
+  animation: hero-hand-coin-roll 8s ease-in-out infinite;
+  opacity: 1;
+  transition: opacity 180ms;
+}
+
+.hero-hand.is-spent .hero-hand__coin {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+}
+
+.hero-hand.is-spent .hero-hand__thumb {
+  animation: hero-hand-thumbs-up 7s ease-in-out infinite;
+}
+
+.hero-hand.is-spent .hero-hand__button {
+  cursor: default;
+}
+
+.hero-hand__status {
+  position: absolute;
+  top: 81%;
+  left: 4%;
+  max-width: 88%;
+  padding: 4px 8px;
+  border: 1px solid #f7ce6840;
+  border-radius: 20px;
+  background: #19131fea;
+  color: #fff1cd;
+  font: 11px/1.2 var(--font-primary, sans-serif);
+  letter-spacing: .02em;
+  white-space: nowrap;
+  opacity: .85;
+  pointer-events: none;
+}
+
+.hero-hand.is-flicking .hero-hand__thumb {
+  animation: hero-hand-flick 650ms ease-out both;
+}
+
+.hero-hand.is-flicking .hero-hand__coin {
+  animation: hero-hand-toss 800ms ease-out both;
+  opacity: 1;
+}
+
+@keyframes hero-hand-twiddle {
+  0%, 12%, 45%, 100% { transform: rotate(0); }
+  19%, 32% { transform: rotate(13deg); }
+  25%, 38% { transform: rotate(-9deg); }
+  70% { transform: rotate(4deg); }
+}
+
+@keyframes hero-hand-coin-roll {
+  0%, 12%, 45%, 100% { transform: translate(0, 0) rotate(0) scaleX(1); }
+  19% { transform: translate(9px, 3px) rotate(28deg) scaleX(.35); }
+  25% { transform: translate(-5px, -3px) rotate(-18deg) scaleX(1); }
+  32% { transform: translate(9px, 3px) rotate(28deg) scaleX(.35); }
+  38% { transform: translate(-5px, -3px) rotate(-18deg) scaleX(1); }
+  70% { transform: translate(0, -5px) rotate(8deg); }
+}
+
+@keyframes hero-hand-thumbs-up {
+  0%, 35%, 65%, 100% { transform: rotate(0); }
+  45%, 55% { transform: rotate(-5deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes hero-hand-flick {
+  0% { transform: rotate(0); }
+  24% { transform: rotate(37deg); }
+  38% { transform: rotate(-24deg); }
+  64% { transform: rotate(5deg); }
+  100% { transform: rotate(0); }
+}
+
+@keyframes hero-hand-toss {
+  0%, 24% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  40% { transform: translate(-28px, -65px) rotate(-95deg); opacity: 1; }
+  100% { transform: translate(-170px, -160px) rotate(-460deg) scale(.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-hand .hero-hand__button,
+  .hero-hand__coin { transition: none; }
+  .hero-hand__thumb,
+  .hero-hand__coin,
+  .hero-hand.is-spent .hero-hand__thumb,
+  .hero-hand.is-flicking .hero-hand__thumb { animation: none; }
+  .hero-hand.is-flicking .hero-hand__coin { animation: hero-hand-reduced-flick 300ms both; }
+}
+
+@keyframes hero-hand-reduced-flick {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

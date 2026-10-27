@@ -1,0 +1,20 @@
+{
+  "name": "hero-point-handle-bars",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Player-awarded Hero Points for Foundry VTT and Pathfinder 2E.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "fvtt": "fvtt",
+    "package": "npm run check && npm test && node scripts/package.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@foundryvtt/foundryvtt-cli": "3.0.5",
+    "fflate": "0.8.3"
+  }
+}
