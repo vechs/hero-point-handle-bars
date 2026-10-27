@@ -18,7 +18,7 @@ The root `module.json` includes the known module metadata and dependency declara
 
 Use Foundry's targeting tool to target exactly one other player's character token. Press **H** or click your hand to gift them one Hero Point. Remap the shortcut in **Configure Controls → Toss a Coin to Your Witcher** if it conflicts with another binding.
 
-Your arm starts at the left edge of Foundry's right sidebar. Move your cursor vertically in the strip occupied by the hand and arm to move it. The hand rolls its coin and twiddles its thumb while a gift is available. After a gift, it gives a thumbs up and displays the remaining cooldown. It follows your Foundry player color and respects reduced motion preferences.
+Your arm attaches to the left edge of Foundry's sidebar content panel, behind the tab rail, with a slightly translucent sleeve. Move your cursor vertically in the strip occupied by the hand and arm to move it. The hand rolls its coin and twiddles its thumb while a gift is available. After a gift, it gives a thumbs up and displays the remaining cooldown. It follows your Foundry player color and respects reduced motion preferences.
 
 The client setting **Show the hero coin hand** hides the overlay while keeping the keybinding available. Input fields do not trigger the shortcut. The empty overlay and arm let canvas clicks pass through.
 

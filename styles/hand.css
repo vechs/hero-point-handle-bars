@@ -6,7 +6,8 @@
   inset: 0 0 0 auto;
   width: 280px;
   height: 100vh;
-  z-index: 65;
+  /* Foundry's sidebar lives at the application layer, above the canvas. */
+  z-index: calc(var(--z-index-app, 30) - 1);
   pointer-events: none;
   contain: layout style;
 }
@@ -64,6 +65,12 @@
 .hero-hand__palm,
 .hero-hand__arm {
   fill: var(--hero-hand-color);
+}
+
+/* Keep the sleeve soft as it crosses beneath the sidebar's tab rail. */
+.hero-hand__arm,
+.hero-hand__arm-highlight {
+  opacity: .7;
 }
 
 .hero-hand__thumb {

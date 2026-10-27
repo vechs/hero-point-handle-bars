@@ -35,11 +35,15 @@ function mountHand(t) {
     style: { setProperty: (name, value) => styles.set(name, value) },
     querySelector: (selector) => selector === "button" ? button : status,
     contains: (target) => [button, status, paintedHand].includes(target),
-    getBoundingClientRect: () => ({ left: 700, right: 980 }),
+    getBoundingClientRect: () => ({ left: 720, right: 1000 }),
     remove: () => { removed = true; }
   };
   const sidebar = {
-    getBoundingClientRect: () => ({ left: 980, width: 300, height: 800 })
+    getBoundingClientRect: () => ({ left: 940, width: 340, height: 800 })
+  };
+  const sidebarContent = {
+    parentElement: sidebar,
+    getBoundingClientRect: () => ({ left: 1000, width: 280, height: 800 })
   };
   class Observer {
     constructor(callback) {
@@ -54,7 +58,7 @@ function mountHand(t) {
     document: {
       createElement: () => element,
       body: { append: () => { appended++; } },
-      querySelector: () => sidebar
+      querySelector: selector => selector === "#sidebar-content" ? sidebarContent : sidebar
     },
     CSS: { supports: (_property, value) => /^#[a-f\d]{6}$/i.test(value) },
     MutationObserver: Observer,
@@ -125,13 +129,13 @@ test("hand accepts clicks only while gifting is available and describes its stat
 
 test("cursor follows the viewport strip, clamps to screen, and leaves controls usable", (t) => {
   const dom = mountHand(t);
-  assert.equal(dom.element.style.right, "300px");
+  assert.equal(dom.element.style.right, "280px", "the arm attaches to the content panel beyond the tab rail");
   dom.move();
   assert.equal(dom.styles.get("--hero-hand-y"), "200px");
 
   for (const event of [
     { clientX: 699, clientY: 300 },
-    { clientX: 981, clientY: 300 },
+    { clientX: 1001, clientY: 300 },
     { pointerType: "touch", clientY: 300 },
     { target: dom.paintedHand, clientY: 300 },
     { target: { closest: () => ({ tagName: "INPUT" }) }, clientY: 300 }
