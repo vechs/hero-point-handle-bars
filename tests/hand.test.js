@@ -10,6 +10,7 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
   const frames = new Map();
   const attributes = new Map();
   const styles = new Map();
+  const layout = { left: 1000, width: 280, cssWidth: 280, marginLeft, marginRight: "0px" };
   const classes = new Set();
   const observers = [];
   const paintedHand = {};
@@ -22,8 +23,17 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
     addEventListener: (type, callback) => buttonEvents.set(type, callback),
     setAttribute: (name, value) => attributes.set(name, value),
     contains: (target) => target === paintedHand,
-    getBoundingClientRect: () => ({ height: 149 })
+    getBoundingClientRect: () => {
+      const left = Number.parseFloat(styles.get("--hero-hand-left"));
+      return {
+        left, right: left + Number.parseFloat(styles.get("--hero-hand-width")),
+        height: Number.parseFloat(styles.get("--hero-hand-height"))
+      };
+    }
   };
+  const drawing = { setAttribute: (name, value) => attributes.set(`drawing.${name}`, value) };
+  const arm = { setAttribute: (name, value) => attributes.set(`arm.${name}`, value) };
+  const armHighlight = { setAttribute: (name, value) => attributes.set(`highlight.${name}`, value) };
   const element = {
     dataset: {},
     classList: {
@@ -32,12 +42,10 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
       remove: (...names) => names.forEach(name => classes.delete(name))
     },
     style: { setProperty: (name, value) => styles.set(name, value) },
-    querySelector: (selector) => selector === "button" ? button : status,
-    contains: (target) => [button, status, paintedHand].includes(target),
-    getBoundingClientRect: () => {
-      const right = window.innerWidth - Number.parseFloat(element.style.right);
-      return { left: right - Number.parseFloat(element.style.width), right };
-    },
+    querySelector: selector => ({ button, ".hero-hand__status": status,
+      ".hero-hand__drawing": drawing, ".hero-hand__arm": arm,
+      ".hero-hand__arm-highlight": armHighlight })[selector],
+    contains: target => [element, button, status, paintedHand].includes(target),
     remove: () => { removed = true; }
   };
   const sidebar = {
@@ -45,7 +53,8 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
   };
   const sidebarContent = {
     parentElement: sidebar,
-    getBoundingClientRect: () => ({ left: 1000, width: 280, height: 800 })
+    get offsetWidth() { return layout.cssWidth; },
+    getBoundingClientRect: () => ({ left: layout.left, right: layout.left + layout.width, width: layout.width, height: 800 })
   };
   class Observer {
     constructor(callback) {
@@ -69,7 +78,7 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
     window: {
       innerWidth: 1280,
       innerHeight: 800,
-      getComputedStyle: () => ({ marginLeft }),
+      getComputedStyle: () => ({ marginLeft: layout.marginLeft, marginRight: layout.marginRight }),
       addEventListener: (type, callback) => events.set(type, callback),
       removeEventListener: (type, callback) => {
         if (events.get(type) === callback) events.delete(type);
@@ -96,13 +105,18 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
   });
   return {
     hand, button, status, element, classes, attributes, styles, observers,
-    events, intervals, timeouts, frames, paintedHand,
+    events, intervals, timeouts, frames, paintedHand, layout, sidebarContent,
     get appended() { return appended; },
     get removed() { return removed; },
     click: () => buttonEvents.get("click")(),
     finishAnimation: () => {
       const [id, callback] = timeouts.entries().next().value;
       timeouts.delete(id);
+      callback();
+    },
+    flushFrame: () => {
+      const [id, callback] = frames.entries().next().value;
+      frames.delete(id);
       callback();
     },
     move: (overrides = {}) => events.get("pointermove")({
@@ -169,13 +183,13 @@ test("re-click restarts play, but a confirmed gift flick takes precedence", (t) 
 
 test("cursor follows the viewport strip, clamps to screen, and leaves controls usable", (t) => {
   const dom = mountHand(t, { marginLeft: "-12px" });
-  assert.equal(dom.element.style.right, "268px", "a negative content margin moves the arm's attachment farther right");
+  assert.equal(dom.styles.get("--hero-hand-left"), "760px", "the sleeve reaches the far-right screen edge behind the open panel");
   dom.move();
   assert.equal(dom.styles.get("--hero-hand-y"), "200px");
 
   for (const event of [
-    { clientX: 699, clientY: 300 },
-    { clientX: 1013, clientY: 300 },
+    { clientX: 759, clientY: 300 },
+    { clientX: 1281, clientY: 300 },
     { pointerType: "touch", clientY: 300 },
     { target: dom.paintedHand, clientY: 300 },
     { target: { closest: () => ({ tagName: "INPUT" }) }, clientY: 300 }
@@ -185,9 +199,72 @@ test("cursor follows the viewport strip, clamps to screen, and leaves controls u
   }
 
   dom.move({ clientY: -100 });
-  assert.equal(dom.styles.get("--hero-hand-y"), "82.5px");
+  assert.equal(dom.styles.get("--hero-hand-y"), "82.375px");
   dom.move({ clientY: 10000 });
-  assert.equal(dom.styles.get("--hero-hand-y"), "701.5px");
+  assert.equal(dom.styles.get("--hero-hand-y"), "701.625px");
+});
+
+test("closing the panel retracts a fixed-size drawing and narrows the live follow area", t => {
+  const dom = mountHand(t, { marginLeft: "-12px" });
+  const width = dom.styles.get("--hero-hand-width");
+  const height = dom.styles.get("--hero-hand-height");
+  dom.move({ clientX: 820, clientY: 200 });
+  assert.equal(dom.styles.get("--hero-hand-y"), "200px");
+
+  // Collapse by the panel's 280px width minus its 12px overlap margin.
+  dom.layout.left = 1280;
+  dom.layout.marginRight = "-280px";
+  dom.hand._layout();
+  assert.equal(dom.styles.get("--hero-hand-left"), "1028px");
+  assert.equal(dom.styles.get("--hero-hand-width"), width);
+  assert.equal(dom.styles.get("--hero-hand-height"), height);
+  // Native Foundry also removes the overlap margin once fully collapsed.
+  dom.layout.marginLeft = "0px";
+  dom.hand._layout();
+  assert.equal(dom.styles.get("--hero-hand-left"), "1040px");
+  dom.move({ clientX: 820, clientY: 300 });
+  assert.equal(dom.styles.get("--hero-hand-y"), "200px", "the former follow strip is no longer active");
+  dom.move({ clientX: 1100, clientY: 300 });
+  assert.equal(dom.styles.get("--hero-hand-y"), "300px");
+  dom.move({ clientX: 1300, clientY: 400 });
+  assert.equal(dom.styles.get("--hero-hand-y"), "300px", "the hidden sleeve does not extend the viewport hit area");
+
+  dom.layout.left = 1000;
+  dom.layout.marginLeft = "-12px";
+  dom.layout.marginRight = "0px";
+  dom.hand._layout();
+  dom.move({ clientX: 820, clientY: 400 });
+  assert.equal(dom.styles.get("--hero-hand-left"), "760px");
+  assert.equal(dom.styles.get("--hero-hand-y"), "400px");
+});
+
+test("sidebar retraction accounts for client UI scaling and stays usable on narrow screens", t => {
+  const dom = mountHand(t, { marginLeft: "-12px" });
+  dom.layout.width = 210;
+  dom.layout.cssWidth = 280;
+  dom.layout.left = 1280;
+  dom.hand._layout();
+  assert.equal(dom.styles.get("--hero-hand-left"), "961px", "the 12px margin is 9px at 75% UI scale");
+
+  window.innerWidth = 400;
+  dom.layout.left = 400;
+  dom.hand._layout();
+  assert.equal(dom.styles.get("--hero-hand-width"), "400px");
+  assert.equal(dom.styles.get("--hero-hand-left"), "201px");
+  assert.equal(dom.styles.get("--hero-hand-height"), "148.75px", "the hand never stretches with the sleeve length");
+});
+
+test("the arm follows sidebar transitions frame by frame and stops after completion", t => {
+  const dom = mountHand(t);
+  const transition = { target: dom.sidebarContent, propertyName: "margin-right" };
+  dom.events.get("transitionrun")({ ...transition, type: "transitionrun" });
+  dom.layout.left = 1140;
+  dom.flushFrame();
+  assert.equal(dom.styles.get("--hero-hand-left"), "900px");
+  assert.equal(dom.frames.size, 1);
+  dom.events.get("transitionend")({ ...transition, type: "transitionend" });
+  dom.flushFrame();
+  assert.equal(dom.frames.size, 0);
 });
 
 test("countdown expiry does not independently authorize a gift", (t) => {

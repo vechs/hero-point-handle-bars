@@ -1,3 +1,8 @@
+const HAND_SCALE = 280 / 320;
+const HAND_HEIGHT = 170 * HAND_SCALE;
+const MIN_ARM_WIDTH = 520;
+const EXPOSED_REACH = 160;
+
 const SVG = `
 <svg class="hero-hand__drawing" viewBox="0 0 320 170" aria-hidden="true" focusable="false">
   <g class="hero-hand__gesture" stroke="#241c27" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -31,8 +36,10 @@ export class HeroHand {
     this._frame = null;
     this._flickTimer = null;
     this._playTimer = null;
+    this._sidebarTransitions = new Set();
     this._onPointerMove = this._onPointerMove.bind(this);
     this._scheduleLayout = this._scheduleLayout.bind(this);
+    this._onSidebarTransition = this._onSidebarTransition.bind(this);
   }
 
   mount() {
@@ -42,17 +49,26 @@ export class HeroHand {
     this.element.dataset.module = "hero-point-handle-bars";
     this.element.innerHTML = `<button class="hero-hand__button" type="button">${SVG}<span class="hero-hand__status"></span></button>`;
     this.button = this.element.querySelector("button");
+    this.drawing = this.element.querySelector(".hero-hand__drawing");
+    this.arm = this.element.querySelector(".hero-hand__arm");
+    this.armHighlight = this.element.querySelector(".hero-hand__arm-highlight");
     this.status = this.element.querySelector(".hero-hand__status");
     this.button.addEventListener("click", () => this.play());
     document.body.append(this.element);
     window.addEventListener("pointermove", this._onPointerMove, { passive: true });
     window.addEventListener("resize", this._scheduleLayout, { passive: true });
+    for (const event of ["transitionrun", "transitionend", "transitioncancel"]) {
+      window.addEventListener(event, this._onSidebarTransition);
+    }
     this._resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(this._scheduleLayout) : null;
     this._mutationObserver = new MutationObserver((records) => {
       if (records.some((record) => !this.element?.contains(record.target))) this._scheduleLayout();
     });
-    // Watch replacement of Foundry's UI containers, but not our own animation styles.
-    this._mutationObserver.observe(document.body, { childList: true, subtree: true });
+    // Follow sidebar replacement, collapse classes, and theme layout changes.
+    // Our own layout/style updates are filtered out above to avoid a loop.
+    this._mutationObserver.observe(document.body, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"]
+    });
     this._clock = window.setInterval(() => {
       this._renderState();
       this._scheduleLayout();
@@ -101,6 +117,9 @@ export class HeroHand {
   destroy() {
     window.removeEventListener("pointermove", this._onPointerMove);
     window.removeEventListener("resize", this._scheduleLayout);
+    for (const event of ["transitionrun", "transitionend", "transitioncancel"]) {
+      window.removeEventListener(event, this._onSidebarTransition);
+    }
     window.clearInterval(this._clock);
     window.clearTimeout(this._flickTimer);
     this._flickTimer = null;
@@ -111,9 +130,13 @@ export class HeroHand {
     this.element?.remove();
     this.element = null;
     this.button = null;
+    this.drawing = null;
+    this.arm = null;
+    this.armHighlight = null;
     this.status = null;
     this._frame = null;
     this._observedSidebar = null;
+    this._sidebarTransitions.clear();
   }
 
   _renderState() {
@@ -140,16 +163,25 @@ export class HeroHand {
     this._frame = window.requestAnimationFrame(() => {
       this._frame = null;
       this._layout();
+      if (this._sidebarTransitions.size) this._scheduleLayout();
     });
+  }
+
+  _onSidebarTransition(event) {
+    if (event.target !== this._observedSidebar) return;
+    if (event.type === "transitionrun") this._sidebarTransitions.add(event.propertyName);
+    else this._sidebarTransitions.delete(event.propertyName);
+    this._scheduleLayout();
   }
 
   _layout() {
     if (!this.element) return;
-    // The tab rail protrudes left of the content panel. Let the arm pass behind
-    // it and terminate at the panel itself, including while it slides closed.
+    // The sleeve always reaches the screen's far edge. Closing the panel moves
+    // the entire drawing right, with the excess clipped by the viewport.
     const sidebar = document.querySelector("#sidebar-content")
       ?? document.querySelector("#sidebar") ?? document.querySelector("#ui-right");
     if (sidebar !== this._observedSidebar) {
+      this._sidebarTransitions.clear();
       this._resizeObserver?.disconnect();
       if (sidebar) this._resizeObserver?.observe(sidebar);
       // A collapsing panel can move without changing its own width; the outer
@@ -159,15 +191,31 @@ export class HeroHand {
     }
     const rect = sidebar?.getBoundingClientRect();
     const sidebarVisible = rect && rect.width > 0 && rect.height > 0;
-    // Remove the panel's client-specific margin offset so a negative margin
-    // tucks the flat end farther right, underneath the content panel.
-    const marginLeft = sidebarVisible ? Number.parseFloat(window.getComputedStyle(sidebar).marginLeft) || 0 : 0;
-    const edge = sidebarVisible
-      ? Math.max(0, Math.min(window.innerWidth, rect.left - marginLeft)) : window.innerWidth;
-    const width = Math.min(280, Math.max(120, edge));
-    this.element.style.right = `${Math.max(0, window.innerWidth - edge)}px`;
-    this.element.style.width = `${width}px`;
-    this.element.style.setProperty("--hero-hand-height", `${width * 170 / 320}px`);
+    let sidebarWidth = 0;
+    let retraction = 0;
+    if (sidebarVisible) {
+      const style = window.getComputedStyle(sidebar);
+      // Bounds are viewport pixels; computed margins need the same UI scaling.
+      const scale = sidebar.offsetWidth > 0 ? rect.width / sidebar.offsetWidth : 1;
+      const marginLeft = (Number.parseFloat(style.marginLeft) || 0) * scale;
+      const marginRight = Math.max(0, Number.parseFloat(style.marginRight) || 0) * scale;
+      const span = Math.max(0, rect.width + marginLeft + marginRight);
+      const visible = Math.max(0, Math.min(span, window.innerWidth - rect.left + marginLeft));
+      retraction = span - visible;
+      // Only the sleeve length changes for a wider sidebar; never scale the hand.
+      sidebarWidth = rect.width + Math.max(0, marginLeft) + marginRight;
+    }
+    const width = Math.min(window.innerWidth, Math.max(MIN_ARM_WIDTH, sidebarWidth + EXPOSED_REACH));
+    // Leave the hand and a short sleeve visible even on very narrow viewports.
+    retraction = Math.min(retraction, Math.max(0, width - 120));
+    const left = window.innerWidth - width + retraction;
+    this.element.style.setProperty("--hero-hand-left", `${left}px`);
+    this.element.style.setProperty("--hero-hand-width", `${width}px`);
+    this.element.style.setProperty("--hero-hand-height", `${HAND_HEIGHT}px`);
+    const end = width / HAND_SCALE;
+    this.drawing.setAttribute("viewBox", `0 0 ${end} 170`);
+    this.arm.setAttribute("d", `M${end} 93 C${end - 62} 96 185 91 120 91 L102 120 C177 112 ${end - 75} 118 ${end} 114 Z`);
+    this.armHighlight.setAttribute("d", `M143 96 C211 100 ${end - 54} 100 ${end - 2} 98`);
     if (this._y === null) this._y = window.innerHeight * 0.58;
     this._place();
   }
@@ -175,8 +223,9 @@ export class HeroHand {
   _onPointerMove(event) {
     if (!this.element || event.pointerType === "touch") return;
     if (event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
-    const rect = this.element.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right) return;
+    const rect = this.button.getBoundingClientRect();
+    // The off-screen sleeve is excluded from the viewport-height follow strip.
+    if (event.clientX < Math.max(0, rect.left) || event.clientX > Math.min(window.innerWidth, rect.right)) return;
     // Keep the button still while a person is trying to click or focus it.
     if (this.button?.contains(event.target)) return;
     this._y = event.clientY;

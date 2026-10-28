@@ -16,8 +16,8 @@
     .controls button { padding: 8px 16px; border: 1px solid #f7ce6870; border-radius: 6px; color: #fff1cd; background: #17222e; cursor: pointer; }
     #sidebar { position: fixed; right: 0; top: 0; height: 100vh; display: flex; z-index: 30; pointer-events: none; }
     #sidebar-tabs { flex: none; width: 50px; padding: 16px 8px; }
-    #sidebar-content { flex: none; width: 200px; height: 100%; padding: 24px; border-left: 1px solid #7c6c4e; background: #15161ddf; margin-right: 0; transition: margin-right .2s; pointer-events: auto; }
-    #sidebar.collapsed #sidebar-content { margin-right: -200px; }
+    #sidebar-content { flex: none; width: 280px; height: 100%; padding: 24px; border-left: 1px solid #7c6c4e; background: #15161ddf; margin-left: -12px; margin-right: 0; transition: margin-right .25s, margin-left .25s; pointer-events: auto; }
+    #sidebar.collapsed #sidebar-content { margin-left: 0; margin-right: -280px; }
     #sidebar-tabs button { width: 100%; min-height: 34px; margin-bottom: 8px; background: #15161dc9; border: 1px solid #756d61; color: #f7ce68; border-radius: 4px; cursor: pointer; pointer-events: auto; }
     #feedback { color: #f7ce68; min-height: 2em; }
     @media (max-width: 700px) { main { padding: 24px; margin-right: 50px; } #sidebar-content { width: 150px; } #sidebar.collapsed #sidebar-content { margin-right: -150px; } }
@@ -34,7 +34,7 @@
       <button id="flick" type="button">Flick coin</button>
     </div>
     <p id="feedback" role="status"></p>
-    <p>The rest of the strip lets clicks pass through to the scene. The sidebar can collapse, and the hand stays attached to its edge.</p>
+    <p>The sleeve extends behind the sidebar to the screen edge. Collapse the panel to retract the arm off-screen; reopen it to extend it again. Its mouse-follow strip moves with the hand. The hand and coin keep their size.</p>
   </main>
   <aside id="sidebar">
     <nav id="sidebar-tabs" aria-label="Mock sidebar tabs">
