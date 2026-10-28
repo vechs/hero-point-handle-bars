@@ -3,9 +3,9 @@
   --hero-hand-y: 58vh;
   --hero-hand-height: 149px;
   position: fixed;
-  inset: 0 0 0 auto;
-  width: 280px;
+  inset: 0;
   height: 100vh;
+  overflow: clip;
   /* Foundry's sidebar lives at the application layer, above the canvas. */
   z-index: calc(var(--z-index-app, 30) - 1);
   pointer-events: none;
@@ -15,8 +15,8 @@
 .hero-hand .hero-hand__button {
   position: absolute;
   top: var(--hero-hand-y);
-  right: 0;
-  width: 100%;
+  left: var(--hero-hand-left, calc(100% - 640px));
+  width: var(--hero-hand-width, 640px);
   height: var(--hero-hand-height);
   min-height: 0;
   margin: 0;
@@ -100,8 +100,8 @@
 .hero-hand__status {
   position: absolute;
   top: 81%;
-  left: 4%;
-  max-width: 88%;
+  left: 12px;
+  max-width: 260px;
   padding: 4px 8px;
   border: 1px solid #f7ce6840;
   border-radius: 20px;
