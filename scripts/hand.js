@@ -28,11 +28,15 @@ const SVG = `
   </g>
 </svg>`;
 
-/** The local player's hand. Gift permission and targeting belong to the controller. */
+/** A player's hand. Gift permission, targeting, and presence belong to the controller. */
 export class HeroHand {
-  constructor() {
+  constructor({ user = globalThis.game?.user, interactive = true, onMove, onPlay, initialPosition = 0.58 } = {}) {
+    this.user = user;
+    this.interactive = interactive;
+    this.onMove = onMove;
+    this.onPlay = onPlay;
     this.state = { available: false, cooldownUntil: 0, reason: "Connecting to the GM…" };
-    this._y = null;
+    this._position = Number.isFinite(initialPosition) ? Math.max(0, Math.min(1, initialPosition)) : 0.58;
     this._frame = null;
     this._flickTimer = null;
     this._playTimer = null;
@@ -46,23 +50,36 @@ export class HeroHand {
     if (this.element) return this;
     this.element = document.createElement("div");
     this.element.className = "hero-hand";
+    this.element.classList.toggle("is-remote", !this.interactive);
     this.element.dataset.module = "hero-point-handle-bars";
-    this.element.innerHTML = `<button class="hero-hand__button" type="button">${SVG}<span class="hero-hand__status"></span></button>`;
-    this.button = this.element.querySelector("button");
+    this.element.dataset.userId = String(this.user?.id ?? "");
+    const tag = this.interactive ? "button" : "div";
+    this.element.innerHTML = `<${tag} class="hero-hand__button"${this.interactive ? ' type="button"' : ""}>${SVG}<span class="hero-hand__status"></span></${tag}>`;
+    this.button = this.element.querySelector(".hero-hand__button");
+    if (!this.interactive) {
+      this.button.setAttribute("role", "img");
+      this.button.setAttribute("tabindex", "-1");
+    }
     this.drawing = this.element.querySelector(".hero-hand__drawing");
     this.arm = this.element.querySelector(".hero-hand__arm");
     this.armHighlight = this.element.querySelector(".hero-hand__arm-highlight");
     this.status = this.element.querySelector(".hero-hand__status");
-    this.button.addEventListener("click", () => this.play());
+    if (this.interactive) {
+      this.button.addEventListener("click", () => {
+        if (this.play()) this.onPlay?.();
+      });
+    }
     document.body.append(this.element);
-    window.addEventListener("pointermove", this._onPointerMove, { passive: true });
+    if (this.interactive) window.addEventListener("pointermove", this._onPointerMove, { passive: true });
     window.addEventListener("resize", this._scheduleLayout, { passive: true });
     for (const event of ["transitionrun", "transitionend", "transitioncancel"]) {
       window.addEventListener(event, this._onSidebarTransition);
     }
     this._resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(this._scheduleLayout) : null;
     this._mutationObserver = new MutationObserver((records) => {
-      if (records.some((record) => !this.element?.contains(record.target))) this._scheduleLayout();
+      // Other players' hand updates must not make observers schedule each other forever.
+      if (records.some((record) => !this.element?.contains(record.target)
+        && !record.target.closest?.(".hero-hand"))) this._scheduleLayout();
     });
     // Follow sidebar replacement, collapse classes, and theme layout changes.
     // Our own layout/style updates are filtered out above to avoid a loop.
@@ -84,13 +101,25 @@ export class HeroHand {
     this._renderState();
   }
 
+  /** Positions are viewport-height ratios so each viewer uses their own screen size. */
+  setPosition(ratio) {
+    if (!Number.isFinite(ratio)) return;
+    this._position = Math.max(0, Math.min(1, ratio));
+    this._place();
+  }
+
+  getPosition() {
+    return this._position;
+  }
+
   /** A local flourish; playing never spends the coin or invokes gift handling. */
   play() {
-    if (!this.element || this._flickTimer !== null) return;
+    if (!this.element || this._flickTimer !== null) return false;
     this._stopPlay();
     void this.element.offsetWidth;
     this.element.classList.add(this.state.available ? "is-playing-coin" : "is-playing-thumb");
     this._playTimer = window.setTimeout(() => this._stopPlay(), 1000);
+    return true;
   }
 
   _stopPlay() {
@@ -115,7 +144,7 @@ export class HeroHand {
   }
 
   destroy() {
-    window.removeEventListener("pointermove", this._onPointerMove);
+    if (this.interactive) window.removeEventListener("pointermove", this._onPointerMove);
     window.removeEventListener("resize", this._scheduleLayout);
     for (const event of ["transitionrun", "transitionend", "transitioncancel"]) {
       window.removeEventListener(event, this._onSidebarTransition);
@@ -148,13 +177,17 @@ export class HeroHand {
     const description = available
       ? "Click to play with your coin. Target another player's token and press H to gift a Hero Point."
       : `Click to wiggle your thumb. ${reason || (remaining > 0 ? "The party's next coin is on its way." : "Waiting for the next coin.")}`;
-    const label = `${description}${remaining > 0 ? ` (${clock} remaining)` : ""}`;
+    const ownerName = String(this.user?.name ?? "Player");
+    const label = this.interactive
+      ? `${description}${remaining > 0 ? ` (${clock} remaining)` : ""}`
+      : `${ownerName}'s hand${available ? " with a hero coin" : ""}.`;
     this.element.classList.toggle("has-coin", Boolean(available));
     this.element.classList.toggle("is-spent", !available);
     this.button.setAttribute("aria-label", label);
     this.button.title = label;
-    this.status.textContent = remaining > 0 ? `${clock} · Click to play` : available ? "Click · Play / H · Gift" : "Click · Thumb wiggle";
-    const color = String(globalThis.game?.user?.color ?? "#8d78bf");
+    this.status.textContent = !this.interactive ? ownerName
+      : remaining > 0 ? `${clock} · Click to play` : available ? "Click · Play / H · Gift" : "Click · Thumb wiggle";
+    const color = String(this.user?.color ?? "#8d78bf");
     this.element.style.setProperty("--hero-hand-color", CSS.supports("color", color) ? color : "#8d78bf");
   }
 
@@ -216,26 +249,26 @@ export class HeroHand {
     this.drawing.setAttribute("viewBox", `0 0 ${end} 170`);
     this.arm.setAttribute("d", `M${end} 93 C${end - 62} 96 185 91 120 91 L102 120 C177 112 ${end - 75} 118 ${end} 114 Z`);
     this.armHighlight.setAttribute("d", `M143 96 C211 100 ${end - 54} 100 ${end - 2} 98`);
-    if (this._y === null) this._y = window.innerHeight * 0.58;
     this._place();
   }
 
   _onPointerMove(event) {
-    if (!this.element || event.pointerType === "touch") return;
+    if (!this.interactive || !this.element || event.pointerType === "touch") return;
     if (event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
     const rect = this.button.getBoundingClientRect();
     // The off-screen sleeve is excluded from the viewport-height follow strip.
     if (event.clientX < Math.max(0, rect.left) || event.clientX > Math.min(window.innerWidth, rect.right)) return;
     // Keep the button still while a person is trying to click or focus it.
     if (this.button?.contains(event.target)) return;
-    this._y = event.clientY;
-    this._place();
+    if (!Number.isFinite(event.clientY) || window.innerHeight <= 0) return;
+    this.setPosition(event.clientY / window.innerHeight);
+    this.onMove?.(this.getPosition());
   }
 
   _place() {
     if (!this.element) return;
     const height = this.button?.getBoundingClientRect().height || 149;
-    const y = Math.max(height / 2 + 8, Math.min(window.innerHeight - height / 2 - 24, this._y));
+    const y = Math.max(height / 2 + 8, Math.min(window.innerHeight - height / 2 - 24, this._position * window.innerHeight));
     this.element.style.setProperty("--hero-hand-y", `${y}px`);
   }
 }

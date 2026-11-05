@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { HeroHand } from "../scripts/hand.js";
 
 /** A small DOM boundary: these tests exercise the hand without a Foundry/browser runtime. */
-function mountHand(t, { marginLeft = "0px" } = {}) {
+function mountHand(t, { marginLeft = "0px", ...handOptions } = {}) {
   const events = new Map();
   const intervals = new Map();
   const timeouts = new Map();
@@ -42,7 +42,7 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
       remove: (...names) => names.forEach(name => classes.delete(name))
     },
     style: { setProperty: (name, value) => styles.set(name, value) },
-    querySelector: selector => ({ button, ".hero-hand__status": status,
+    querySelector: selector => ({ button, ".hero-hand__button": button, ".hero-hand__status": status,
       ".hero-hand__drawing": drawing, ".hero-hand__arm": arm,
       ".hero-hand__arm-highlight": armHighlight })[selector],
     contains: target => [element, button, status, paintedHand].includes(target),
@@ -95,7 +95,7 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
   for (const [key, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
-  const hand = new HeroHand().mount();
+  const hand = new HeroHand(handOptions).mount();
   t.after(() => {
     hand.destroy();
     for (const [key, descriptor] of descriptors) {
@@ -108,7 +108,7 @@ function mountHand(t, { marginLeft = "0px" } = {}) {
     events, intervals, timeouts, frames, paintedHand, layout, sidebarContent,
     get appended() { return appended; },
     get removed() { return removed; },
-    click: () => buttonEvents.get("click")(),
+    click: () => buttonEvents.get("click")?.(),
     finishAnimation: () => {
       const [id, callback] = timeouts.entries().next().value;
       timeouts.delete(id);
@@ -154,6 +154,103 @@ test("click plays locally with or without a coin and never changes gifting state
   assert.match(dom.attributes.get("aria-label"), /Waiting for the GM/);
   assert.ok(dom.classes.has("is-spent"));
   assert.ok(!dom.classes.has("has-coin"));
+});
+
+test("remote hands show their owner's identity and never register local input", t => {
+  const owner = { id: "other-player", name: "<Alice & Bob>", color: "#cb8765" };
+  let played = 0;
+  const moved = [];
+  const dom = mountHand(t, { user: owner, interactive: false, initialPosition: 0.3,
+    onMove: ratio => moved.push(ratio), onPlay: () => played++ });
+  assert.ok(dom.classes.has("is-remote"));
+  assert.equal(dom.element.dataset.userId, owner.id);
+  assert.equal(dom.styles.get("--hero-hand-color"), owner.color);
+  assert.equal(dom.status.textContent, owner.name);
+  assert.match(dom.attributes.get("aria-label"), /<Alice & Bob>'s hand/);
+  assert.equal(dom.attributes.get("role"), "img");
+  assert.equal(dom.attributes.get("tabindex"), "-1");
+  assert.ok(!dom.events.has("pointermove"));
+  dom.click();
+  assert.ok(!dom.classes.has("is-playing-thumb"));
+  assert.equal(dom.hand.play(), true, "remote presence messages can still animate the hand");
+  dom.hand._onPointerMove({ pointerType: "mouse", clientX: 800, clientY: 500 });
+  assert.equal(dom.hand.getPosition(), 0.3);
+  assert.deepEqual(moved, []);
+  assert.equal(played, 0);
+
+  owner.name = "Renamed player";
+  owner.color = "#8844aa";
+  dom.hand.setState({ available: true });
+  assert.equal(dom.status.textContent, owner.name, "Foundry User updates remain visible through the owner reference");
+  assert.equal(dom.styles.get("--hero-hand-color"), owner.color);
+  assert.doesNotMatch(dom.attributes.get("aria-label"), /Click|press H/);
+});
+
+test("normalized positions survive viewer resize and reject nonfinite input without echoing", t => {
+  const moved = [];
+  const dom = mountHand(t, { interactive: false, initialPosition: 0.2, onMove: ratio => moved.push(ratio) });
+  assert.equal(dom.hand.getPosition(), 0.2);
+  assert.equal(dom.styles.get("--hero-hand-y"), "160px");
+  window.innerHeight = 1200;
+  dom.events.get("resize")();
+  dom.flushFrame();
+  assert.equal(dom.hand.getPosition(), 0.2);
+  assert.equal(dom.styles.get("--hero-hand-y"), "240px");
+
+  dom.hand.setPosition(0.75);
+  assert.equal(dom.styles.get("--hero-hand-y"), "900px");
+  for (const invalid of [NaN, Infinity, -Infinity, undefined, "0.5"]) dom.hand.setPosition(invalid);
+  assert.equal(dom.hand.getPosition(), 0.75);
+  assert.equal(dom.styles.get("--hero-hand-y"), "900px");
+  dom.hand.setPosition(2);
+  assert.equal(dom.hand.getPosition(), 1);
+  assert.equal(dom.styles.get("--hero-hand-y"), "1101.625px");
+  dom.hand.setPosition(-1);
+  assert.equal(dom.hand.getPosition(), 0);
+  assert.equal(dom.styles.get("--hero-hand-y"), "82.375px");
+  assert.deepEqual(moved, []);
+  assert.equal(new HeroHand({ initialPosition: NaN }).getPosition(), 0.58);
+});
+
+test("local callbacks describe accepted input while remote API calls never echo", t => {
+  const moved = [];
+  let played = 0;
+  const dom = mountHand(t, { onMove: ratio => moved.push(ratio), onPlay: () => played++ });
+  dom.hand.setPosition(0.4);
+  assert.deepEqual(moved, []);
+  dom.move();
+  assert.deepEqual(moved, [0.25]);
+  assert.equal(dom.hand.getPosition(), 0.25);
+  dom.move({ clientX: 100, clientY: 500 });
+  dom.move({ target: dom.paintedHand, clientY: 500 });
+  dom.move({ clientY: NaN });
+  assert.deepEqual(moved, [0.25]);
+  window.innerHeight = 1200;
+  dom.events.get("resize")();
+  dom.flushFrame();
+  assert.equal(dom.styles.get("--hero-hand-y"), "300px");
+  assert.deepEqual(moved, [0.25]);
+
+  dom.hand.play();
+  assert.equal(played, 0);
+  dom.click();
+  assert.equal(played, 1);
+  dom.hand.flick();
+  dom.click();
+  assert.equal(played, 1, "a gift flick blocks play announcements as well as play animation");
+  dom.finishAnimation();
+  dom.click();
+  assert.equal(played, 2);
+});
+
+test("peer hand mutations do not make renderers schedule each other forever", t => {
+  const dom = mountHand(t);
+  const mutationObserver = dom.observers[1];
+  mutationObserver.callback([{ target: dom.element }]);
+  mutationObserver.callback([{ target: { closest: selector => selector === ".hero-hand" ? {} : null } }]);
+  assert.equal(dom.frames.size, 0);
+  mutationObserver.callback([{ target: dom.sidebarContent }]);
+  assert.equal(dom.frames.size, 1, "native sidebar changes still trigger a layout update");
 });
 
 test("re-click restarts play, but a confirmed gift flick takes precedence", (t) => {

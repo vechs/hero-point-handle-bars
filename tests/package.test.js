@@ -16,7 +16,7 @@ test("the release ZIP is reproducible, complete, and excludes development files"
   assert.equal(manifest.id, "hero-point-handle-bars");
   assert.equal(first.filename, `${manifest.id}-${manifest.version}.zip`);
   for (const entry of [...manifest.esmodules, ...manifest.styles]) assert.ok(files[entry], entry);
-  for (const entry of ["scripts/coin.js", "scripts/hand.js", "scripts/rules.js", "scripts/service.js", "README.md"]) assert.ok(files[entry], entry);
+  for (const entry of ["scripts/coin.js", "scripts/hand.js", "scripts/presence.js", "scripts/rules.js", "scripts/service.js", "README.md"]) assert.ok(files[entry], entry);
   assert.ok(Object.keys(files).every(name => !/node_modules|package-lock|AGENTS|tests\/|dev\/|\.mjs$/.test(name)));
   assert.deepEqual(await readFile(join(output, "module.json")), Buffer.from(files["module.json"]));
   assert.equal(await readFile(join(output, "SHA256SUMS"), "utf8"), `${first.sha256}  ${first.filename}\n`);

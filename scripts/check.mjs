@@ -6,6 +6,13 @@ const manifest = JSON.parse(await readFile(new URL("../module.json", import.meta
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 assert.equal(manifest.id, pkg.name);
 assert.equal(manifest.version, pkg.version);
+if (manifest.download) {
+  const tag = new URL(manifest.download).pathname.match(/\/releases\/download\/([^/]+)\//)?.[1];
+  if (tag && tag !== "latest") {
+    assert.ok(tag === manifest.version || tag === `v${manifest.version}`,
+      "The download URL must point to the manifest's release version.");
+  }
+}
 assert.equal(manifest.socket, true);
 assert.ok(manifest.relationships.requires.some(entry => entry.id === "socketlib"));
 for (const file of [...manifest.esmodules, ...manifest.styles]) await access(new URL(`../${file}`, import.meta.url));
