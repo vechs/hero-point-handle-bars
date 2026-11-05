@@ -61,6 +61,12 @@
   pointer-events: visiblePainted;
 }
 
+/* Remote artwork never captures the owner's clicks or canvas input beneath it. */
+.hero-hand.is-remote,
+.hero-hand.is-remote * {
+  pointer-events: none;
+}
+
 .hero-hand__skin,
 .hero-hand__palm,
 .hero-hand__arm {

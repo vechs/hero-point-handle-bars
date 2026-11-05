@@ -2,7 +2,7 @@
   "id": "hero-point-handle-bars",
   "title": "Hero Point Handle Bars",
   "description": "Celebrate heroic deeds in Pathfinder 2E by gifting Hero Points to fellow players. Includes an animated, player-colored hand, a configurable shared cooldown (60 minutes by default), fair recipient rotation, GM exemptions, and optional Dice So Nice coins featuring the recipient's token artwork.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "authors": [
     { "name": "vechs" }
   ],

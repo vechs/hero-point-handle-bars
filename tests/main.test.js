@@ -65,8 +65,11 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   });
   const functions = new Map();
   const routes = [];
+  const presenceTraffic = [];
   install("socketlib", { registerModule: () => ({
     register: (name, fn) => functions.set(name, fn),
+    executeForOthers: async (name, packet) => { presenceTraffic.push({ name, packet }); },
+    executeForUsers: async (name, recipients, packet) => { presenceTraffic.push({ name, recipients, packet }); },
     async executeAsUser(name, userId, request) {
       const caller = game.user;
       routes.push({ userId, callerId: caller.id });
@@ -96,6 +99,13 @@ test("Foundry lifecycle wires H and Socketlib into a GM-context award with no ap
   emit("init");
   game.ready = true;
   emit("ready");
+  assert.equal(presenceTraffic[0].name, "handPresence");
+  assert.equal(presenceTraffic[0].packet.type, "hello");
+  assert.equal(presenceTraffic[0].packet.visible, false, "hidden clients still announce their visibility preference");
+  assert.equal(functions.get("handPresence").call({ socketdata: { userId: "b" } }, {
+    version: 1, type: "hello", session: "bob-tab", sequence: 1, y: 0.7, visible: true, userId: "gm"
+  }), true);
+  assert.deepEqual(presenceTraffic.at(-1).recipients, ["b"], "discovery replies use the authenticated sender, not payload userId");
   assert.equal(settings.get("cooldownMinutes").scope, "world");
   assert.equal(settings.get("cooldownMinutes").config, true);
   assert.equal(values.get("cooldownMinutes"), 60);

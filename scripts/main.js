@@ -1,11 +1,11 @@
 import { MODULE_ID, COOLDOWN_MS, GiftError, emptyState, eligiblePlayers, normalizeState, recipientForToken } from "./rules.js";
 import { GiftService } from "./service.js";
-import { HeroHand } from "./hand.js";
+import { HandPresence } from "./presence.js";
 import { registerCoinHooks, showGiftCoin } from "./coin.js";
 
 let socket;
 let service;
-let hand;
+let presence;
 let busy = false;
 let refreshTimer;
 let recoveryTimer;
@@ -23,6 +23,9 @@ function registerSocket() {
     return service?.handleRequest(request, this.socketdata?.userId)
       ?? { ok: false, error: "The GM is still connecting. Please try again shortly." };
   });
+  socket.register("handPresence", function(packet) {
+    return presence?.receive(this.socketdata?.userId, packet) ?? false;
+  });
 }
 
 Hooks.once("socketlib.ready", registerSocket);
@@ -33,10 +36,10 @@ Hooks.once("init", () => {
     onChange: () => refreshHand()
   });
   game.settings.register(MODULE_ID, "showHand", {
-    name: "Show the hero coin hand",
-    hint: "Display your animated hand beside the sidebar. The gift keybinding works with the hand hidden.",
+    name: "Show hero coin hands",
+    hint: "Display connected users' hands beside the sidebar. Turning this off also hides your hand from others. The gift keybinding works with hands hidden.",
     scope: "client", config: true, type: Boolean, default: true,
-    onChange: () => mountHand()
+    onChange: () => refreshHand()
   });
   game.settings.register(MODULE_ID, "cooldownMinutes", {
     name: "Player gift cooldown (minutes)",
@@ -70,21 +73,29 @@ Hooks.once("ready", () => {
     notify: error => console.error(`${MODULE_ID} |`, error)
   });
   game.modules.get(MODULE_ID).api = Object.freeze({ gift, getState: () => structuredClone(service.state) });
-  mountHand();
+  presence = new HandPresence({
+    game, stateFor: handStateFor,
+    session: foundry.utils.randomID(24),
+    isVisible: () => game.settings.get(MODULE_ID, "showHand"),
+    send: (packet, recipientId) => recipientId
+      ? socket?.executeForUsers("handPresence", [recipientId], packet)
+      : socket?.executeForOthers("handPresence", packet)
+  }).start();
+  game.socket?.on("connect", announcePresence);
   refreshTimer = setInterval(refreshHand, 1000);
   recoveryTimer = setInterval(recover, 10000);
   recover();
 });
 
-function mountHand() {
-  if (!game.ready || !service) return;
-  hand?.destroy();
-  hand = game.settings.get(MODULE_ID, "showHand") ? new HeroHand().mount() : null;
-  refreshHand();
+function announcePresence() {
+  presence?.announce();
 }
 
 function refreshHand() {
-  if (!service || !hand) return;
+  presence?.refresh();
+}
+
+function handStateFor(owner) {
   const players = eligiblePlayers(game.users);
   const state = normalizeState(service.state, players);
   let reason = "";
@@ -92,23 +103,23 @@ function refreshHand() {
   if (!socket) reason = "Enable Socketlib to gift Hero Points.";
   else if (!game.users.activeGM) reason = "A GM must be connected to gift Hero Points.";
   else if (state.pending) reason = "A coin is being processed…";
-  else if (busy) reason = "Flicking your coin…";
-  else if (!game.user.isGM) {
-    if (!players.some(user => user.id === game.user.id)) reason = "Assign yourself a player character to gift a coin.";
+  else if (busy && owner.id === game.user.id) reason = "Flicking your coin…";
+  else if (!owner.isGM) {
+    if (!players.some(user => user.id === owner.id)) reason = "Assign yourself a player character to gift a coin.";
     else if (state.cooldownUntil > Date.now()) {
       reason = "The party's next coin is on its way.";
       cooldownUntil = state.cooldownUntil;
-    } else if (!players.some(user => user.id !== game.user.id && !state.received.includes(user.id))) {
+    } else if (!players.some(user => user.id !== owner.id && !state.received.includes(user.id))) {
       reason = "Waiting for another player to receive the next coin.";
     }
   }
   if (!reason && !players.some(user => {
     const resource = user.character?.system?.resources?.heroPoints;
-    return user.id !== game.user.id && (game.user.isGM || !state.received.includes(user.id))
+    return user.id !== owner.id && (owner.isGM || !state.received.includes(user.id))
       && Number.isInteger(resource?.value) && Number.isInteger(resource?.max)
       && resource.max > 0 && resource.value < resource.max;
   })) reason = "No eligible character has room for another Hero Point.";
-  hand.setState({ available: !reason, reason, cooldownUntil });
+  return { available: !reason, reason, cooldownUntil };
 }
 
 /** Public macro API as well as the gift keybinding action. */
@@ -152,7 +163,7 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
   if (!game.users.get(userId)?.isGM || !receipt?.id || shownGifts.has(receipt.id)) return;
   shownGifts.add(receipt.id);
   if (shownGifts.size > 256) shownGifts.delete(shownGifts.values().next().value);
-  if (receipt.donorId === game.user.id) hand?.flick();
+  presence?.flick(receipt.donorId);
   void showGiftCoin(receipt);
   refreshHand();
 });
@@ -162,7 +173,8 @@ for (const event of ["userConnected", "updateUser", "createUser", "deleteUser", 
 }
 
 globalThis.addEventListener?.("pagehide", () => {
-  hand?.destroy();
+  presence?.destroy();
+  game.socket?.off("connect", announcePresence);
   clearInterval(refreshTimer);
   clearInterval(recoveryTimer);
 }, { once: true });
